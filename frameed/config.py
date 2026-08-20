@@ -39,9 +39,9 @@ FRAME_OVERHEAD_BYTES = HEADER_SIZE + CRC_SIZE  # 43 bytes
 FRAME_OVERHEAD_BITS  = FRAME_OVERHEAD_BYTES * 8  # 344 bits
 
 # ── Reed-Solomon settings (GF 2^8) ───────────────────────────────────────────
-RS_NSYM       = 16                   # ECC symbols: corrects up to 8 byte-errors
+RS_NSYM       = 0                    # Disabled to bypass pure-Python bottlenecks. XOR parity active.
 RS_BLOCK_TOTAL = 255                 # Max RS codeword length
-RS_BLOCK_DATA  = RS_BLOCK_TOTAL - RS_NSYM  # 239 raw data bytes per RS block
+RS_BLOCK_DATA  = RS_BLOCK_TOTAL - RS_NSYM  # Variable block
 
 
 # ── Mode configuration ────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ class ModeConfig:
     @property
     def payload_capacity_bytes(self) -> int:
         """Bytes available for ECC-encoded payload per frame."""
-        return (self.total_inner_cells - FRAME_OVERHEAD_BITS) // 8
+        return self.total_inner_cells - FRAME_OVERHEAD_BYTES
 
     @property
     def max_rs_blocks(self) -> int:
@@ -89,7 +89,7 @@ class ModeConfig:
 
 MODES: dict[str, ModeConfig] = {
     "archive": ModeConfig(
-        cell_size=4, resolution=(1920, 1080), fps=30,
+        cell_size=1, resolution=(3840, 2160), fps=60,
         fec_ratio=0.10, border_cells=2, parity_group=8,
     ),
     "optical": ModeConfig(

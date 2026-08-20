@@ -39,9 +39,9 @@ def build_frame(
     ecc_payload = rs_encode(raw_payload)
     crc = compute_crc32(raw_payload)
     blob = header + ecc_payload + crc
-    # Sanity-check: blob bits must fit in frame
-    assert len(blob) * 8 <= mode.total_inner_cells, (
-        f"Frame blob {len(blob)*8} bits > capacity {mode.total_inner_cells} bits"
+    # Sanity-check: blob bytes must fit in frame
+    assert len(blob) <= mode.total_inner_cells, (
+        f"Frame blob {len(blob)} bytes > capacity {mode.total_inner_cells} bytes"
     )
     return blob
 

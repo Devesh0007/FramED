@@ -22,41 +22,53 @@ from PIL import Image
 from frameed.config import ModeConfig
 
 
+from typing import Iterable
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _ffmpeg_available() -> bool:
     return shutil.which('ffmpeg') is not None
 
 
-def _write_ffmpeg(images: list[Image.Image], output_path: str, mode: ModeConfig) -> None:
-    """FFmpeg path: saves PNGs to temp dir, muxes with FFV1 lossless codec."""
-    with tempfile.TemporaryDirectory(prefix='frameed_') as tmp_dir:
-        for idx, img in enumerate(images):
-            img.save(os.path.join(tmp_dir, f'frame_{idx:06d}.png'), format='PNG')
+def _write_ffmpeg(images: Iterable[Image.Image], output_path: str, mode: ModeConfig) -> None:
+    """FFmpeg path: uses stdin pipe to mux with FFV1 lossless codec directly to bypass IO stalls."""
+    w, h = mode.resolution
+    cmd = [
+        'ffmpeg', '-y',
+        '-f', 'rawvideo',
+        '-vcodec', 'rawvideo',
+        '-s', f'{w}x{h}',
+        '-pix_fmt', 'gray',
+        '-framerate', str(mode.fps),
+        '-i', '-',
+        '-c:v', 'ffv1',
+        '-pix_fmt', 'gray',
+        output_path
+    ]
+    process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    try:
+        for img in images:
+            process.stdin.write(np.array(img, dtype=np.uint8).tobytes())
+    except Exception as e:
+        process.stdin.close()
+        process.kill()
+        raise e
+        
+    process.stdin.close()
+    process.wait()
+    if process.returncode != 0:
+        raise RuntimeError(
+            f"FFmpeg failed (exit {process.returncode}):\n{process.stderr.read().decode()}"
+        )
 
-        pattern = os.path.join(tmp_dir, 'frame_%06d.png')
-        cmd = [
-            'ffmpeg', '-y',
-            '-framerate', str(mode.fps),
-            '-i', pattern,
-            '-vcodec', 'ffv1',
-            '-pix_fmt', 'gray',
-            output_path,
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"FFmpeg failed (exit {result.returncode}):\n{result.stderr}"
-            )
 
-
-def _write_opencv(images: list[Image.Image], output_path: str, mode: ModeConfig) -> None:
+def _write_opencv(images: Iterable[Image.Image], output_path: str, mode: ModeConfig) -> None:
     """OpenCV fallback path: tries lossless codecs in order."""
     w, h = mode.resolution
 
     # Try codecs in order of preference (lossless first)
     candidates = [
-        ('HFYU', 'Huffyuv lossless'),
         ('FFV1', 'FFV1 lossless'),
         ('DIB ', 'Uncompressed (large file)'),
     ]
@@ -90,18 +102,16 @@ def _write_opencv(images: list[Image.Image], output_path: str, mode: ModeConfig)
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def frames_to_video(
-    images: list[Image.Image],
+    images: Iterable[Image.Image],
     output_path: str,
     mode: ModeConfig,
+    total_frames: int = 0
 ) -> str:
     """
     Encode images into a lossless AVI file.
     Uses FFmpeg if available, otherwise falls back to OpenCV VideoWriter.
     Returns the path of the written file.
     """
-    if not images:
-        raise ValueError("No frames to write.")
-
     output_path = str(Path(output_path).with_suffix('.avi'))
 
     if _ffmpeg_available():
@@ -111,6 +121,6 @@ def frames_to_video(
         _write_opencv(images, output_path, mode)
 
     print(f"[FrameED] Video written -> {output_path}")
-    print(f"[FrameED] {len(images)} frames @ {mode.fps} FPS  "
-          f"({mode.resolution[0]}×{mode.resolution[1]}, cell={mode.cell_size}×{mode.cell_size}px)")
+    print(f"[FrameED] (Streamed dynamically @ {mode.fps} FPS  "
+          f"{mode.resolution[0]}×{mode.resolution[1]}, cell={mode.cell_size}×{mode.cell_size}px)")
     return output_path

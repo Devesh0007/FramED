@@ -37,26 +37,29 @@ class Frame:
     manifest:     Optional[dict] = field(default=None)  # set for MANIFEST frames
 
 
-def sample_bits(gray: np.ndarray, mode: ModeConfig) -> list[int]:
-    """Sample cell-center pixels from the inner grid; return bit list."""
+def sample_bytes(gray: np.ndarray, mode: ModeConfig) -> bytes:
+    """Sample cell-center pixels from the inner grid; return exact bytes."""
     cs  = mode.cell_size
     b   = mode.border_cells
     gcols = mode.grid_cols
     grows = mode.grid_rows
 
-    bits = []
-    for gr in range(b, grows - b):
-        for gc in range(b, gcols - b):
-            cy = gr * cs + cs // 2
-            cx = gc * cs + cs // 2
-            bits.append(1 if int(gray[cy, cx]) >= 128 else 0)
-    return bits
+    if grows <= 2*b or gcols <= 2*b:
+        return b""
+
+    r_start = b * cs + cs // 2
+    r_end = (grows - b) * cs
+    
+    c_start = b * cs + cs // 2
+    c_end = (gcols - b) * cs
+    
+    samples = gray[r_start:r_end:cs, c_start:c_end:cs]
+    return samples.astype(np.uint8).ravel().tobytes()
 
 
 def parse_frame(gray: np.ndarray, mode: ModeConfig) -> Optional[Frame]:
     """Parse a grayscale frame array → Frame. Returns None if unrecognised."""
-    bits  = sample_bits(gray, mode)
-    raw   = bits_to_bytes(bits)
+    raw = sample_bytes(gray, mode)
 
     # Check magic
     if len(raw) < HEADER_SIZE + CRC_SIZE or raw[:4] != MAGIC:

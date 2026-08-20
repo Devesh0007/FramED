@@ -108,13 +108,13 @@ def encode_file(
 
     assert len(blobs) == total_frames
 
-    # 6. Render to PIL images
-    print(f"[FrameED] Rendering {total_frames} frames …")
-    images = [render_frame(b, mode) for b in blobs]
+    # 6. Render to PIL images dynamically
+    print(f"[FrameED] Rendering & Streaming {total_frames} frames directly to VideoStream …")
+    images_gen = (render_frame(b, mode) for b in blobs)
 
     # 7. Write video
     out_path = str(Path(output_video))
-    frames_to_video(images, out_path, mode)
+    frames_to_video(images_gen, out_path, mode, total_frames)
     return out_path
 
 
@@ -132,35 +132,28 @@ def decode_file(
     Decode a FrameED video back to the original file.
     Returns the path to the written output file.
     """
-    # 1. Extract frames
-    raw_frames = extract_frames(input_video)
+    # 1. Extract frames (generator)
+    frame_generator = extract_frames(input_video)
 
-    # 2. Determine mode (try both; MANIFEST picks the right one)
-    #    We need mode for sampling — try archive first, fall back to optical.
-    parsed: list[Frame | None] = []
+    # 2. Determine mode (try both; MANIFEST picks the right one on the FIRST frame)
     manifest_frame: Frame | None = None
     detected_mode: ModeConfig | None = None
 
+    try:
+        first_img = next(frame_generator)
+    except StopIteration:
+        raise ValueError("Video file appears empty.")
+
     for mode_try in (MODES.get(mode_name) and [MODES[mode_name]] or list(MODES.values())):
-        parsed = []
-        manifest_frame = None
-        for img in raw_frames:
-            f = parse_frame(img, mode_try)
-            parsed.append(f)
-            if f and f.frame_type == FrameType.MANIFEST and f.valid:
-                manifest_frame = f
-                break
-        if manifest_frame:
+        f = parse_frame(first_img, mode_try)
+        if f and f.frame_type == FrameType.MANIFEST and f.valid:
+            manifest_frame = f
             detected_mode = mode_try
-            # Re-parse all frames with confirmed mode
             print(f"[FrameED] Detected mode '{manifest_frame.manifest['mode']}'")
             break
 
     if not manifest_frame:
         raise ValueError("No valid MANIFEST frame found. Is this a FrameED video?")
-
-    # Parse remaining frames with confirmed mode
-    parsed = [parse_frame(img, detected_mode) for img in raw_frames]
 
     meta         = manifest_frame.manifest
     mode_name_ok = meta['mode']
@@ -168,19 +161,25 @@ def decode_file(
     processed_size = meta['processed_size']
     mode = MODES[mode_name_ok]
 
-    # 3. Collect DATA and PARITY frames
+    # 3. Collect DATA and PARITY frames sequentially to save memory
     data_chunks:  dict[int, bytes] = {}
     parity_map:   dict[int, bytes] = {}
 
-    for f in parsed:
+    def _frame_stream():
+        yield manifest_frame
+        for img in frame_generator:
+            yield parse_frame(img, mode)
+
+    num_data_frames = 0
+    for f in _frame_stream():
         if f is None or not f.valid:
             continue
         if f.frame_type == FrameType.DATA:
             data_chunks[f.chunk_id] = f.raw_payload
+            num_data_frames += 1
         elif f.frame_type == FrameType.PARITY:
             parity_map[f.chunk_id] = f.raw_payload   # chunk_id = group_start
 
-    num_data_frames = sum(1 for f in parsed if f and f.frame_type == FrameType.DATA)
     total_chunks = (processed_size + mode.raw_chunk_size - 1) // mode.raw_chunk_size
     print(f"[FrameED] Received {len(data_chunks)}/{total_chunks} DATA chunks, "
           f"{len(parity_map)} PARITY groups.")

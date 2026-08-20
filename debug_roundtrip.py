@@ -6,13 +6,13 @@ import sys
 import numpy as np
 import cv2
 from PIL import Image
-from frameed.config import ARCHIVE_MODE, MAGIC
+from frameed.config import MODES, MAGIC
 from frameed.encoder.renderer import render_frame
 from frameed.encoder.frame_builder import build_manifest_frame
 from frameed.encoder.fec import rs_encode
 from frameed.utils import generate_file_id
 
-mode = ARCHIVE_MODE
+mode = MODES["archive"]
 file_id = generate_file_id()
 
 # 1. Build a real MANIFEST frame blob
@@ -40,15 +40,15 @@ print(f"Unique pixel values: {np.unique(arr)}")  # should be only [0, 255]
 
 # 4. Write to video using OpenCV (same path as video_writer.py)
 out_path = "_debug_test.avi"
-fourcc = cv2.VideoWriter_fourcc(*'HFYU')
-writer = cv2.VideoWriter(out_path, fourcc, 30.0, (w, h), isColor=False)
+fourcc = cv2.VideoWriter_fourcc(*'FFV1')
+writer = cv2.VideoWriter(out_path, fourcc, mode.fps, (w, h), isColor=False)
 opened = writer.isOpened()
-print(f"VideoWriter opened (HFYU): {opened}")
+print(f"VideoWriter opened (FFV1): {opened}")
 if not opened:
     writer.release()
     for fc in ('FFV1', 'DIB '):
         fourcc = cv2.VideoWriter_fourcc(*fc)
-        writer = cv2.VideoWriter(out_path, fourcc, 30.0, (w, h), isColor=False)
+        writer = cv2.VideoWriter(out_path, fourcc, mode.fps, (w, h), isColor=False)
         if writer.isOpened():
             print(f"Using codec: {fc}")
             break
@@ -65,8 +65,8 @@ print(f"Read back: ret={ret}, frame shape={frame.shape if ret else None}")
 if ret:
     # Convert back to grayscale if needed
     if frame.ndim == 3:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        print("NOTE: frame was written as grayscale but read back as BGR — converting")
+        gray = frame[:, :, 0]
+        print("NOTE: frame was written as grayscale but read back as BGR — extracted channel 0")
     else:
         gray = frame
     
@@ -76,10 +76,8 @@ if ret:
     print(f"Pixel-perfect round-trip: {np.array_equal(arr, gray)}")
 
     # 6. Try parsing the readback frame
-    from frameed.decoder.frame_parser import sample_bits
-    from frameed.utils import bits_to_bytes
-    bits = sample_bits(gray, mode)
-    raw = bits_to_bytes(bits)
+    from frameed.decoder.frame_parser import sample_bytes
+    raw = sample_bytes(gray, mode)
     print(f"\nDecoded raw[:8] hex: {raw[:8].hex()}")
     print(f"Expected MAGIC hex:  {MAGIC.hex()}")
     print(f"Magic matches: {raw[:4] == MAGIC}")

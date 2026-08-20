@@ -59,6 +59,9 @@ def test_roundtrip_with_encryption(sample_file, tmp_path):
 
 def _check_ffmpeg():
     import subprocess
-    r = subprocess.run(["ffmpeg", "-version"], capture_output=True)
-    if r.returncode != 0:
+    try:
+        r = subprocess.run(["ffmpeg", "-version"], capture_output=True)
+        if r.returncode != 0:
+            pytest.skip("FFmpeg not found on PATH")
+    except FileNotFoundError:
         pytest.skip("FFmpeg not found on PATH")

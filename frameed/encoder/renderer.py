@@ -31,33 +31,47 @@ def render_frame(blob: bytes, mode: ModeConfig) -> Image.Image:
     # Canvas (neutral grey = unused cells)
     canvas = np.full((h, w), 128, dtype=np.uint8)
 
-    # ── Border: checkerboard ────────────────────────────────────────────────
     gcols = mode.grid_cols
     grows = mode.grid_rows
-    for gr in range(grows):
-        for gc in range(gcols):
-            is_border = gr < b or gr >= grows - b or gc < b or gc >= gcols - b
-            if is_border:
-                val = 255 if (gr + gc) % 2 == 0 else 0
-                canvas[gr * cs:(gr + 1) * cs, gc * cs:(gc + 1) * cs] = val
+    
+    # ── Grid (pre-scale) ───────────
+    grid = np.full((grows, gcols), 128, dtype=np.uint8)
+    
+    # Border
+    # Checkboard pattern: (row + col) % 2 == 0 -> 255 else 0
+    R, C = np.indices((grows, gcols))
+    checkerboard = np.where((R + C) % 2 == 0, 255, 0).astype(np.uint8)
+    
+    # Fill border
+    mask = np.ones((grows, gcols), dtype=bool)
+    if b > 0 and grows > 2*b and gcols > 2*b:
+        mask[b:-b, b:-b] = False
+    grid[mask] = checkerboard[mask]
 
     # ── Inner data cells ────────────────────────────────────────────────────
-    bits    = bytes_to_bits(blob)
-    bit_idx = 0
     inner_r_start = b
     inner_r_end   = grows - b
     inner_c_start = b
     inner_c_end   = gcols - b
+    
+    inner_rows = inner_r_end - inner_r_start
+    inner_cols = inner_c_end - inner_c_start
+    
+    if inner_rows > 0 and inner_cols > 0:
+        max_cells = inner_rows * inner_cols
+        if len(blob) > 0:
+            pixel_arr = np.frombuffer(blob, dtype=np.uint8)
+            num_bytes = min(len(pixel_arr), max_cells)
+            
+            if num_bytes > 0:
+                inner_grid = np.full(max_cells, 128, dtype=np.uint8)
+                inner_grid[:num_bytes] = pixel_arr[:num_bytes]
+                grid[inner_r_start:inner_r_end, inner_c_start:inner_c_end] = inner_grid.reshape((inner_rows, inner_cols))
 
-    for gr in range(inner_r_start, inner_r_end):
-        for gc in range(inner_c_start, inner_c_end):
-            val = 255 if bits[bit_idx] else 0
-            canvas[gr * cs:(gr + 1) * cs, gc * cs:(gc + 1) * cs] = val
-            bit_idx += 1
-            if bit_idx >= len(bits):
-                # Fill remaining cells grey (padding) → already grey
-                break
-        if bit_idx >= len(bits):
-            break
+    # Scale up if cell_size > 1
+    if cs > 1:
+        grid = np.repeat(np.repeat(grid, cs, axis=0), cs, axis=1)
+
+    canvas[:grid.shape[0], :grid.shape[1]] = grid
 
     return Image.fromarray(canvas, mode='L')

@@ -4,9 +4,11 @@ import numpy as np
 from pathlib import Path
 
 
-def extract_frames(video_path: str) -> list[np.ndarray]:
+import typing
+
+def extract_frames(video_path: str) -> typing.Generator[np.ndarray, None, None]:
     """
-    Return all frames from the video as a list of grayscale numpy arrays
+    Yield all frames from the video as grayscale numpy arrays
     (shape: H×W, dtype uint8).
     """
     path = str(Path(video_path))
@@ -14,20 +16,20 @@ def extract_frames(video_path: str) -> list[np.ndarray]:
     if not cap.isOpened():
         raise FileNotFoundError(f"Cannot open video: {path}")
 
-    frames = []
+    extracted = 0
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         if len(frame.shape) == 3:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = frame[:, :, 0]  # R=G=B for grayscale; direct slice avoids cvtColor integer rounding
         else:
             gray = frame
-        frames.append(gray)
+        extracted += 1
+        yield gray
 
     cap.release()
-    if not frames:
+    if extracted == 0:
         raise ValueError(f"No frames extracted from: {path}")
 
-    print(f"[FrameED] Extracted {len(frames)} frames from {path}")
-    return frames
+    print(f"[FrameED] Extracted {extracted} frames from {path}")

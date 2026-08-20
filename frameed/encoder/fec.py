@@ -15,13 +15,15 @@ from reedsolo import RSCodec
 
 from frameed.config import RS_NSYM, RS_BLOCK_DATA, RS_BLOCK_TOTAL
 
-_rs = RSCodec(RS_NSYM)
+_rs = RSCodec(RS_NSYM) if RS_NSYM > 0 else None
 
 
 # ── Per-frame RS encode / decode ─────────────────────────────────────────────
 
 def rs_encode(data: bytes) -> bytes:
     """Encode arbitrary-length data with RS ECC. Returns ECC-appended codewords."""
+    if RS_NSYM == 0:
+        return data
     out = bytearray()
     for i in range(0, len(data), RS_BLOCK_DATA):
         block = data[i:i + RS_BLOCK_DATA]
@@ -37,6 +39,8 @@ def rs_decode(ecc_data: bytes, raw_len: int) -> bytes:
       - Full blocks have RS_BLOCK_DATA + RS_NSYM bytes.
       - The last block (if shorter) has remainder + RS_NSYM bytes.
     """
+    if RS_NSYM == 0:
+        return ecc_data[:raw_len]
     out = bytearray()
     remaining_raw = raw_len
     pos = 0
@@ -72,13 +76,18 @@ def ecc_size_for(raw_len: int) -> int:
 
 def xor_parity(payloads: list[bytes]) -> bytes:
     """XOR a list of payloads together (all padded to max length)."""
+    if not payloads:
+        return b""
+    import numpy as np
     max_len = max(len(p) for p in payloads)
-    result = bytearray(max_len)
+    arrs = []
     for p in payloads:
-        padded = p.ljust(max_len, b'\x00')
-        for i, b in enumerate(padded):
-            result[i] ^= b
-    return bytes(result)
+        if len(p) < max_len:
+            p = p.ljust(max_len, b'\x00')
+        arrs.append(np.frombuffer(p, dtype=np.uint8))
+    stacked = np.vstack(arrs)
+    result = np.bitwise_xor.reduce(stacked, axis=0)
+    return result.tobytes()
 
 
 def generate_parity_frames(raw_chunks: list[bytes], parity_group: int) -> list[tuple[int, bytes]]:
@@ -108,11 +117,17 @@ def recover_missing_chunk(
         raise ValueError(f"XOR parity can only recover exactly 1 missing chunk; {len(missing)} missing.")
     idx = missing[0]
     known = [c for c in group_chunks if c is not None]
-    # XOR all known chunks + parity → missing chunk
-    recovered = bytearray(parity)
+    if not known:
+        return parity
+
+    import numpy as np
+    max_len = len(parity)
+    arrs = [np.frombuffer(parity, dtype=np.uint8)]
     for c in known:
-        padded = c.ljust(len(parity), b'\x00')
-        for i, b in enumerate(padded):
-            if i < len(recovered):
-                recovered[i] ^= b
-    return bytes(recovered)
+        if len(c) < max_len:
+            c = c.ljust(max_len, b'\x00')
+        arrs.append(np.frombuffer(c, dtype=np.uint8))
+        
+    stacked = np.vstack(arrs)
+    recovered = np.bitwise_xor.reduce(stacked, axis=0)
+    return recovered.tobytes()
