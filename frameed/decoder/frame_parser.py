@@ -37,12 +37,16 @@ class Frame:
     manifest:     Optional[dict] = field(default=None)  # set for MANIFEST frames
 
 
-def sample_bytes(gray: np.ndarray, mode: ModeConfig) -> bytes:
+def sample_bytes(gray_or_bgr: np.ndarray, mode: ModeConfig) -> bytes:
     """Sample cell-center pixels from the inner grid; return exact bytes."""
     cs  = mode.cell_size
     b   = mode.border_cells
     gcols = mode.grid_cols
     grows = mode.grid_rows
+    ch  = getattr(mode, 'channels', 1)
+
+    if ch == 1 and gray_or_bgr.ndim == 3:
+        gray_or_bgr = gray_or_bgr[:, :, 0]
 
     if grows <= 2*b or gcols <= 2*b:
         return b""
@@ -53,13 +57,21 @@ def sample_bytes(gray: np.ndarray, mode: ModeConfig) -> bytes:
     c_start = b * cs + cs // 2
     c_end = (gcols - b) * cs
     
-    samples = gray[r_start:r_end:cs, c_start:c_end:cs]
+    samples = gray_or_bgr[r_start:r_end:cs, c_start:c_end:cs]
+    
+    if ch == 3 and samples.ndim == 3:
+        # Reorder BGR to RGB if needed, but since we map directly bytes to values, 
+        # as long as python read/write sequences natively align or reverse align it's identical
+        # Wait, if we rendered it RGB through CV2, CV2 flipped it BGR. Then on read, CV2 gives BGR! 
+        # So we MUST flip BGR -> RGB to recover the byte sequences perfectly!
+        samples = samples[:, :, ::-1]
+
     return samples.astype(np.uint8).ravel().tobytes()
 
 
-def parse_frame(gray: np.ndarray, mode: ModeConfig) -> Optional[Frame]:
-    """Parse a grayscale frame array → Frame. Returns None if unrecognised."""
-    raw = sample_bytes(gray, mode)
+def parse_frame(gray_or_bgr: np.ndarray, mode: ModeConfig) -> Optional[Frame]:
+    """Parse a frame array → Frame. Returns None if unrecognised."""
+    raw = sample_bytes(gray_or_bgr, mode)
 
     # Check magic
     if len(raw) < HEADER_SIZE + CRC_SIZE or raw[:4] != MAGIC:

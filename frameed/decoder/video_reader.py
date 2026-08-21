@@ -21,12 +21,12 @@ def extract_frames(video_path: str) -> typing.Generator[np.ndarray, None, None]:
         ret, frame = cap.read()
         if not ret:
             break
-        if len(frame.shape) == 3:
-            gray = frame[:, :, 0]  # R=G=B for grayscale; direct slice avoids cvtColor integer rounding
-        else:
-            gray = frame
+        # In both 1-channel (if it reads 3) and 3-channel, leaving it as 3 channels is okay for parsing 
+        # But for 1-channel we need to slice it to 1 channel if the mode is actually 1-channel!
+        # Actually, extracting frames shouldn't require mode here; it's passed natively. 
+        # Pipeline parser handles the rest. Just yield raw read output natively.
         extracted += 1
-        yield gray
+        yield frame
 
     cap.release()
     if extracted == 0:

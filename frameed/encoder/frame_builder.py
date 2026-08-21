@@ -40,8 +40,10 @@ def build_frame(
     crc = compute_crc32(raw_payload)
     blob = header + ecc_payload + crc
     # Sanity-check: blob bytes must fit in frame
-    assert len(blob) <= mode.total_inner_cells, (
-        f"Frame blob {len(blob)} bytes > capacity {mode.total_inner_cells} bytes"
+    ch = getattr(mode, 'channels', 1)
+    max_bytes = mode.total_inner_cells * ch
+    assert len(blob) <= max_bytes, (
+        f"Frame blob {len(blob)} bytes > capacity {max_bytes} bytes"
     )
     return blob
 

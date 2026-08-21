@@ -53,6 +53,7 @@ class ModeConfig:
     fec_ratio:     float  # parity_frames / data_frames (informational)
     border_cells:  int    # border strip width in cells
     parity_group:  int    # every N data frames → 1 XOR parity frame
+    channels:      int = 1 # 1 for grayscale, 3 for RGB
 
     # ── Derived geometry ──────────────────────────────────────────────────────
     @property
@@ -69,7 +70,8 @@ class ModeConfig:
     @property
     def payload_capacity_bytes(self) -> int:
         """Bytes available for ECC-encoded payload per frame."""
-        return self.total_inner_cells - FRAME_OVERHEAD_BYTES
+        ch = getattr(self, 'channels', 1)
+        return (self.total_inner_cells * ch) - FRAME_OVERHEAD_BYTES
 
     @property
     def max_rs_blocks(self) -> int:
@@ -88,12 +90,22 @@ class ModeConfig:
 
 
 MODES: dict[str, ModeConfig] = {
-    "archive": ModeConfig(
-        cell_size=1, resolution=(3840, 2160), fps=60,
-        fec_ratio=0.10, border_cells=2, parity_group=8,
+    'archive': ModeConfig(
+        cell_size=1,
+        resolution=(3840, 2160),
+        fps=60,
+        fec_ratio=0.10,
+        border_cells=20,
+        parity_group=8,
+        channels=3,
     ),
-    "optical": ModeConfig(
-        cell_size=8, resolution=(1920, 1080), fps=24,
-        fec_ratio=0.25, border_cells=2, parity_group=4,
-    ),
+    'optical': ModeConfig(
+        cell_size=8,
+        resolution=(1920, 1080),
+        fps=30,
+        fec_ratio=0.30,
+        border_cells=10,
+        parity_group=3,
+        channels=3,
+    )
 }

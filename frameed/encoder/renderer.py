@@ -23,42 +23,44 @@ from frameed.utils import bytes_to_bits
 
 
 def render_frame(blob: bytes, mode: ModeConfig) -> Image.Image:
-    """Convert a frame blob → PIL grayscale image (mode='L')."""
-    cs   = mode.cell_size
-    w, h = mode.resolution
-    b    = mode.border_cells
-
-    # Canvas (neutral grey = unused cells)
-    canvas = np.full((h, w), 128, dtype=np.uint8)
-
+    """
+    Render a single deterministic video frame payload onto arrays.
+    """
+    cs    = mode.cell_size
+    b     = mode.border_cells
     gcols = mode.grid_cols
     grows = mode.grid_rows
-    
-    # ── Grid (pre-scale) ───────────
-    grid = np.full((grows, gcols), 128, dtype=np.uint8)
-    
-    # Border
-    # Checkboard pattern: (row + col) % 2 == 0 -> 255 else 0
-    R, C = np.indices((grows, gcols))
-    checkerboard = np.where((R + C) % 2 == 0, 255, 0).astype(np.uint8)
-    
-    # Fill border
-    mask = np.ones((grows, gcols), dtype=bool)
-    if b > 0 and grows > 2*b and gcols > 2*b:
-        mask[b:-b, b:-b] = False
-    grid[mask] = checkerboard[mask]
+    ch    = getattr(mode, 'channels', 1)
 
-    # ── Inner data cells ────────────────────────────────────────────────────
-    inner_r_start = b
-    inner_r_end   = grows - b
-    inner_c_start = b
-    inner_c_end   = gcols - b
-    
-    inner_rows = inner_r_end - inner_r_start
-    inner_cols = inner_c_end - inner_c_start
+    if grows <= 2*b or gcols <= 2*b:
+        raise ValueError(f"Resolution too small for borders: {grows}x{gcols}")
+
+    if ch == 1:
+        grid = np.full((grows, gcols), 128, dtype=np.uint8)
+        R, C = np.indices((grows, gcols))
+        checkerboard = np.where((R + C) % 2 == 0, 255, 0).astype(np.uint8)
+        
+        # Border
+        grid[:b, :] = checkerboard[:b, :]
+        grid[-b:, :] = checkerboard[-b:, :]
+        grid[:, :b] = checkerboard[:, :b]
+        grid[:, -b:] = checkerboard[:, -b:]
+    else:
+        grid = np.full((grows, gcols, ch), 128, dtype=np.uint8)
+        R, C = np.indices((grows, gcols))
+        mask = ((R + C) % 2 == 0)
+        grid[mask] = [255, 255, 255]
+        grid[~mask] = [0, 0, 0]
+
+        # Reset inner grid to 128 (protecting borders)
+        grid[b:grows-b, b:gcols-b] = [128, 128, 128]
+
+    # Inner cells
+    inner_rows = mode.inner_rows
+    inner_cols = mode.inner_cols
     
     if inner_rows > 0 and inner_cols > 0:
-        max_cells = inner_rows * inner_cols
+        max_cells = inner_rows * inner_cols * ch
         if len(blob) > 0:
             pixel_arr = np.frombuffer(blob, dtype=np.uint8)
             num_bytes = min(len(pixel_arr), max_cells)
@@ -66,12 +68,16 @@ def render_frame(blob: bytes, mode: ModeConfig) -> Image.Image:
             if num_bytes > 0:
                 inner_grid = np.full(max_cells, 128, dtype=np.uint8)
                 inner_grid[:num_bytes] = pixel_arr[:num_bytes]
-                grid[inner_r_start:inner_r_end, inner_c_start:inner_c_end] = inner_grid.reshape((inner_rows, inner_cols))
+                if ch == 1:
+                    grid[b:grows-b, b:gcols-b] = inner_grid.reshape((inner_rows, inner_cols))
+                else:
+                    grid[b:grows-b, b:gcols-b] = inner_grid.reshape((inner_rows, inner_cols, ch))
 
     # Scale up if cell_size > 1
     if cs > 1:
-        grid = np.repeat(np.repeat(grid, cs, axis=0), cs, axis=1)
+        grid = grid.repeat(cs, axis=0).repeat(cs, axis=1)
 
-    canvas[:grid.shape[0], :grid.shape[1]] = grid
-
-    return Image.fromarray(canvas, mode='L')
+    if ch == 1:
+        return Image.fromarray(grid, mode='L')
+    else:
+        return Image.fromarray(grid, mode='RGB')

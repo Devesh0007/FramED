@@ -27,29 +27,36 @@ from typing import Iterable
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _ffmpeg_available() -> bool:
-    return shutil.which('ffmpeg') is not None
+    return shutil.which('ffmpeg') is not None or os.path.exists('ffmpeg.exe')
 
 
 def _write_ffmpeg(images: Iterable[Image.Image], output_path: str, mode: ModeConfig) -> None:
     """FFmpeg path: uses stdin pipe to mux with FFV1 lossless codec directly to bypass IO stalls."""
     w, h = mode.resolution
+    ch = getattr(mode, 'channels', 1)
+    pix_fmt = 'bgr24' if ch == 3 else 'gray'
     cmd = [
         'ffmpeg', '-y',
         '-f', 'rawvideo',
         '-vcodec', 'rawvideo',
         '-s', f'{w}x{h}',
-        '-pix_fmt', 'gray',
+        '-pix_fmt', pix_fmt,
         '-framerate', str(mode.fps),
         '-i', '-',
-        '-c:v', 'ffv1',
-        '-pix_fmt', 'gray',
+        '-c:v', 'libx264rgb' if ch == 3 else 'libx264',
+        '-crf', '0',
+        '-preset', 'ultrafast',
         output_path
     ]
-    process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
     
     try:
         for img in images:
-            process.stdin.write(np.array(img, dtype=np.uint8).tobytes())
+            # OpenCV and FFmpeg bgr24 expect BGR array format.
+            arr = np.array(img, dtype=np.uint8)
+            if ch == 3:
+                arr = arr[:, :, ::-1] # flip RGB from PIL to BGR natively
+            process.stdin.write(arr.tobytes())
     except Exception as e:
         process.stdin.close()
         process.kill()
@@ -59,13 +66,15 @@ def _write_ffmpeg(images: Iterable[Image.Image], output_path: str, mode: ModeCon
     process.wait()
     if process.returncode != 0:
         raise RuntimeError(
-            f"FFmpeg failed (exit {process.returncode}):\n{process.stderr.read().decode()}"
+            f"FFmpeg failed (exit {process.returncode})"
         )
 
 
 def _write_opencv(images: Iterable[Image.Image], output_path: str, mode: ModeConfig) -> None:
     """OpenCV fallback path: tries lossless codecs in order."""
     w, h = mode.resolution
+    ch = getattr(mode, 'channels', 1)
+    is_color = (ch == 3)
 
     # Try codecs in order of preference (lossless first)
     candidates = [
@@ -77,7 +86,7 @@ def _write_opencv(images: Iterable[Image.Image], output_path: str, mode: ModeCon
     chosen = None
     for fourcc_str, label in candidates:
         fourcc = cv2.VideoWriter_fourcc(*fourcc_str)
-        w_test = cv2.VideoWriter(output_path, fourcc, float(mode.fps), (w, h), isColor=False)
+        w_test = cv2.VideoWriter(output_path, fourcc, float(mode.fps), (w, h), isColor=is_color)
         if w_test.isOpened():
             writer = w_test
             chosen = label
@@ -86,15 +95,15 @@ def _write_opencv(images: Iterable[Image.Image], output_path: str, mode: ModeCon
 
     if writer is None or not writer.isOpened():
         raise RuntimeError(
-            "No working lossless VideoWriter codec found. "
-            "Install FFmpeg (https://ffmpeg.org/download.html) and add it to PATH."
+            "No working lossless VideoWriter codec found."
         )
 
-    print(f"[FrameED] Using OpenCV VideoWriter ({chosen}). "
-          f"Note: install FFmpeg for smaller, guaranteed-lossless files.")
+    print(f"[FrameED] Using OpenCV VideoWriter ({chosen}).")
 
     for img in images:
         frame = np.array(img, dtype=np.uint8)
+        if ch == 3:
+            frame = frame[:, :, ::-1] # Convert PIL RGB to OpenCV BGR
         writer.write(frame)
     writer.release()
 

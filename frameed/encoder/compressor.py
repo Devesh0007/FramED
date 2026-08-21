@@ -10,7 +10,7 @@ def compress(data: bytes, extension: str) -> bytes:
     """Compress and prepend: original_size(4) + ext_len(1) + ext bytes."""
     ext_b = extension.lstrip('.').encode()[:255]
     header = _HDR_FMT.pack(len(data), len(ext_b)) + ext_b
-    cctx = zstd.ZstdCompressor(level=3)
+    cctx = zstd.ZstdCompressor(level=3, threads=-1)
     return header + cctx.compress(data)
 
 
