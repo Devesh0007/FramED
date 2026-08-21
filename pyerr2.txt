@@ -1,0 +1,12 @@
+﻿....F......                                                              [100%]
+================================== FAILURES ===================================
+________________________ test_rs_corrects_byte_errors _________________________
+tests\test_fec.py:32: in test_rs_corrects_byte_errors
+    assert recovered == data
+E   AssertionError: assert b'\xa7\xa7\xa...XXXXXXXXXXXXX' == b'XXXXXXXXXXX...XXXXXXXXXXXXX'
+E     
+E     At index 0 diff: b'\xa7' != b'X'
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/test_fec.py::test_rs_corrects_byte_errors - AssertionError: asse...
+1 failed, 10 passed in 6.01s

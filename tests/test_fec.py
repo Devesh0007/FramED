@@ -3,6 +3,7 @@ import pytest
 from frameed.encoder.fec import (
     rs_encode, rs_decode, generate_parity_frames, recover_missing_chunk,
 )
+from frameed.config import RS_NSYM
 
 
 # ── RS ECC ────────────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ def test_rs_encode_decode_multi_block():
     assert recovered == data
 
 
+@pytest.mark.skipif("RS_NSYM == 0")
 def test_rs_corrects_byte_errors():
     """RS should correct up to 8 byte errors per 255-byte block."""
     data = b'X' * 239

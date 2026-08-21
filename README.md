@@ -1,31 +1,30 @@
 # FrameED — Visual Data-Storage Protocol
 
-> **Any file → black/white video → byte-for-byte recovery.**
+> **Any file → high-density video → byte-for-byte recovery.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)](https://www.python.org)
 
 ## How it works
 
 ```
-File → Compress (zstd) → [Encrypt (AES-256-GCM)] → Chunk → RS-ECC encode
-  → Self-describing frames → n×n pixel B&W cells → Lossless FFV1 video
+File → Compress (zstd) → [Encrypt (AES-256-GCM)] → Chunk → XOR Parity
+  → Self-describing frames → n×n pixel cells → Lossless FFV1 video
 ```
 
 Each video frame is **self-describing** — it carries a full header (magic, version,
 frame ID, file UUID, chunk ID, payload length, CRC32) so the decoder doesn't blindly
-assume ordering.  Two layers of error correction protect every byte:
+assume ordering. Cross-frame error correction protects against frame drops:
 
 | Layer | What it does |
 |---|---|
-| **Reed-Solomon ECC** | Corrects up to 8 random byte-errors per 255-byte RS block (in-frame) |
 | **XOR parity frames** | Recovers any 1 missing frame per group of N frames (cross-frame) |
 
 ## Encoding modes
 
 | Mode | Cell size | Throughput | Best for |
 |---|---|---|---|
-| `archive` | 4×4 px | ~437 KB/s @ 30 FPS | Pristine MP4/AVI storage |
-| `optical` | 8×8 px | ~80 KB/s @ 24 FPS | Survives re-encoding, camera capture |
+| `archive` | 1×1 px | ~1.20 GB/s @ 60 FPS | Pristine MP4/AVI storage (4K) |
+| `optical` | 8×8 px | ~1.63 MB/s @ 30 FPS | Survives re-encoding, camera capture (1080p) |
 
 ## Installation
 
@@ -59,14 +58,14 @@ pytest tests/ -v
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ SYNC BORDER (checkerboard, 2-cell wide)                  │
+│ SYNC BORDER (checkerboard, N-cell wide)                  │
 │  ┌────────────────────────────────────────────────────┐  │
 │  │ HEADER (39 bytes)                                  │  │
 │  │  MAGIC(4) VERSION(1) TYPE(1) FRAME_ID(4)           │  │
 │  │  TOTAL_FRAMES(4) FILE_ID(16) CHUNK_ID(4)           │  │
 │  │  PAYLOAD_LEN(4) FLAGS(1)                           │  │
 │  ├────────────────────────────────────────────────────┤  │
-│  │ RS-ECC PAYLOAD (variable)                          │  │
+│  │ DATA PAYLOAD (variable)                            │  │
 │  ├────────────────────────────────────────────────────┤  │
 │  │ CRC32 of raw payload (4 bytes)                     │  │
 │  └────────────────────────────────────────────────────┘  │

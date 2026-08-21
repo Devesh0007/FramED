@@ -54,6 +54,7 @@ class ModeConfig:
     border_cells:  int    # border strip width in cells
     parity_group:  int    # every N data frames → 1 XOR parity frame
     channels:      int = 1 # 1 for grayscale, 3 for RGB
+    bit_depth:     int = 8 # 1 for bit-based black/white, 8 for byte-based
 
     # ── Derived geometry ──────────────────────────────────────────────────────
     @property
@@ -71,6 +72,9 @@ class ModeConfig:
     def payload_capacity_bytes(self) -> int:
         """Bytes available for ECC-encoded payload per frame."""
         ch = getattr(self, 'channels', 1)
+        bpp = getattr(self, 'bit_depth', 8)
+        if bpp == 1:
+            return ((self.total_inner_cells * ch) // 8) - FRAME_OVERHEAD_BYTES
         return (self.total_inner_cells * ch) - FRAME_OVERHEAD_BYTES
 
     @property
@@ -107,5 +111,15 @@ MODES: dict[str, ModeConfig] = {
         border_cells=10,
         parity_group=3,
         channels=3,
+    ),
+    'youtube': ModeConfig(
+        cell_size=4,
+        resolution=(1920, 1080),
+        fps=60,
+        fec_ratio=0.30,
+        border_cells=10,
+        parity_group=3,
+        channels=1,
+        bit_depth=1,
     )
 }

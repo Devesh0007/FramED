@@ -1,0 +1,20 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Personal\Projects\FrameED
+collected 11 items / 1 error
+
+=================================== ERRORS ====================================
+________________ ERROR collecting tests/test_cell_rendering.py ________________
+ImportError while importing test module 'C:\Personal\Projects\FrameED\tests\test_cell_rendering.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\deves\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_cell_rendering.py:6: in <module>
+    from frameed.decoder.frame_parser import sample_bits
+E   ImportError: cannot import name 'sample_bits' from 'frameed.decoder.frame_parser' (C:\Personal\Projects\FrameED\frameed\decoder\frame_parser.py)
+=========================== short test summary info ===========================
+ERROR tests/test_cell_rendering.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+============================== 1 error in 0.40s ===============================

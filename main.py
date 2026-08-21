@@ -20,9 +20,9 @@ def cli():
 @click.argument('output_video')
 @click.option(
     '--mode', '-m',
-    type=click.Choice(['archive', 'optical']),
+    type=click.Choice(['archive', 'optical', 'youtube']),
     default='archive', show_default=True,
-    help='archive=4×4 cells (max capacity); optical=8×8 cells (compression-resilient)',
+    help='archive=1x1 RGB cells; optical=8x8 RGB cells; youtube=8x8 Grayscale 1-bit cells (compression-resilient)',
 )
 @click.option(
     '--password', '-p',

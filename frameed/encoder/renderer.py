@@ -62,12 +62,19 @@ def render_frame(blob: bytes, mode: ModeConfig) -> Image.Image:
     if inner_rows > 0 and inner_cols > 0:
         max_cells = inner_rows * inner_cols * ch
         if len(blob) > 0:
-            pixel_arr = np.frombuffer(blob, dtype=np.uint8)
-            num_bytes = min(len(pixel_arr), max_cells)
+            bpp = getattr(mode, 'bit_depth', 8)
+            if bpp == 1:
+                bits = bytes_to_bits(blob)
+                num_units = min(len(bits), max_cells)
+                pixel_arr = np.array(bits[:num_units], dtype=np.uint8) * 255
+            else:
+                pixel_arr = np.frombuffer(blob, dtype=np.uint8)
+                num_units = min(len(pixel_arr), max_cells)
+                pixel_arr = pixel_arr[:num_units]
             
-            if num_bytes > 0:
+            if num_units > 0:
                 inner_grid = np.full(max_cells, 128, dtype=np.uint8)
-                inner_grid[:num_bytes] = pixel_arr[:num_bytes]
+                inner_grid[:num_units] = pixel_arr
                 if ch == 1:
                     grid[b:grows-b, b:gcols-b] = inner_grid.reshape((inner_rows, inner_cols))
                 else:

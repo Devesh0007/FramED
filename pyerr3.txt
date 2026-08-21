@@ -1,0 +1,19 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Personal\Projects\FrameED
+collected 1 item
+
+tests\test_cell_rendering.py F                                           [100%]
+
+================================== FAILURES ===================================
+______________________ test_render_and_readback_archive _______________________
+tests\test_cell_rendering.py:21: in test_render_and_readback_archive
+    assert sampled_trimmed == blob, "Byte mismatches found in render\u2192readback (archive)."
+E   AssertionError: Byte mismatches found in render\u2192readback (archive).
+E   assert b'\x02\x01\x0...1654987<;:?>=' == b'\x00\x01\x0...3456789:;<=>?'
+E     
+E     At index 0 diff: b'\x02' != b'\x00'
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/test_cell_rendering.py::test_render_and_readback_archive - Asser...
+============================== 1 failed in 1.40s ==============================

@@ -66,11 +66,22 @@ def sample_bytes(gray_or_bgr: np.ndarray, mode: ModeConfig) -> bytes:
         # So we MUST flip BGR -> RGB to recover the byte sequences perfectly!
         samples = samples[:, :, ::-1]
 
+    bpp = getattr(mode, 'bit_depth', 8)
+    if bpp == 1:
+        bits = (samples >= 128).astype(np.uint8).ravel().tolist()
+        return bits_to_bytes(bits)
+
     return samples.astype(np.uint8).ravel().tobytes()
 
 
 def parse_frame(gray_or_bgr: np.ndarray, mode: ModeConfig) -> Optional[Frame]:
     """Parse a frame array → Frame. Returns None if unrecognised."""
+    target_width, target_height = mode.resolution
+    
+    if gray_or_bgr.shape[:2] != (target_height, target_width):
+        import cv2
+        gray_or_bgr = cv2.resize(gray_or_bgr, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
+        
     raw = sample_bytes(gray_or_bgr, mode)
 
     # Check magic
