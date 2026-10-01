@@ -1,9 +1,9 @@
 """Test cell rendering and pixel-level readback accuracy."""
 import numpy as np
 import pytest
-from frameed.config import MODES
-from frameed.encoder.renderer import render_frame
-from frameed.decoder.frame_parser import sample_bytes
+from framed.config import MODES
+from framed.encoder.renderer import render_frame
+from framed.decoder.frame_parser import sample_bytes
 
 
 def test_render_and_readback_archive():

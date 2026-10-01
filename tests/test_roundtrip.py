@@ -8,8 +8,8 @@ import tempfile
 import pytest
 from pathlib import Path
 
-from frameed.config import MODES
-from frameed.pipeline import encode_file, decode_file
+from framed.config import MODES
+from framed.pipeline import encode_file, decode_file
 
 
 @pytest.fixture

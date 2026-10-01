@@ -1,9 +1,9 @@
 """Test Reed-Solomon ECC and XOR parity frame recovery."""
 import pytest
-from frameed.encoder.fec import (
+from framed.encoder.fec import (
     rs_encode, rs_decode, generate_parity_frames, recover_missing_chunk,
 )
-from frameed.config import RS_NSYM
+from framed.config import RS_NSYM
 
 
 # ── RS ECC ────────────────────────────────────────────────────────────────────

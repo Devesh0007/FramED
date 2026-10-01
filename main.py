@@ -1,17 +1,17 @@
-"""FrameED CLI — encode any file into a B&W video or decode it back."""
+"""FramED CLI — encode any file into a high-density data video or decode it back."""
 import click
-from frameed.pipeline import encode_file, decode_file
+from framed.pipeline import encode_file, decode_file
 
 
 @click.group()
-@click.version_option("0.1.0", prog_name="FrameED")
+@click.version_option("0.1.0", prog_name="FramED")
 def cli():
     """
-    FrameED — Visual Data-Storage Protocol.
+    FramED — Visual Data-Storage Protocol.
 
-    Encode ANY file into a lossless black/white video and decode it back
-    byte-for-byte. Uses compression, optional AES-256-GCM encryption,
-    Reed-Solomon ECC, and XOR parity for robustness.
+    Encode ANY file into a high-density video and decode it back
+    byte-for-byte. Uses Zstandard compression, optional AES-256-GCM encryption,
+    and XOR parity for robustness.
     """
 
 
@@ -22,7 +22,7 @@ def cli():
     '--mode', '-m',
     type=click.Choice(['archive', 'optical', 'youtube']),
     default='archive', show_default=True,
-    help='archive=1x1 RGB cells; optical=8x8 RGB cells; youtube=8x8 Grayscale 1-bit cells (compression-resilient)',
+    help='archive=1x1 RGB cells (4K lossless); optical=8x8 RGB cells (1080p); youtube=2x2 RGB 1-bit cells (compression-resilient)',
 )
 @click.option(
     '--password', '-p',
@@ -41,7 +41,7 @@ def encode(input_file, output_video, mode, password):
 @cli.command()
 @click.argument("input_video", type=click.Path(exists=True))
 @click.argument("output_dir", type=click.Path())
-@click.option("--mode", help="Force decode mode ('archive' or 'optical'). Usually auto-detected from MANIFEST.")
+@click.option("--mode", help="Force decode mode ('archive', 'optical', or 'youtube'). Usually auto-detected from MANIFEST.")
 @click.option("--password", help="Password if the file was encrypted.")
 def decode(input_video, output_dir, mode, password):
     """Decode INPUT_VIDEO back into original file inside OUTPUT_DIR."""

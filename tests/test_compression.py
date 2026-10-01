@@ -1,6 +1,6 @@
 """Test zstd compression/decompression identity."""
 import pytest
-from frameed.encoder.compressor import compress, decompress
+from framed.encoder.compressor import compress, decompress
 
 
 @pytest.mark.parametrize("data,ext", [
